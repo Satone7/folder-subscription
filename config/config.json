@@ -1,0 +1,11 @@
+{
+    "webdav": {
+        "host": "http://softrouter.me:18080"
+    },
+    "folders": [
+        {
+            "remote": "/手机备份/视频备份",
+            "local": "/home/pren/local_root/movies"
+        }
+    ]
+}
