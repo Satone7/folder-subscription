@@ -5,7 +5,7 @@
     "folders": [
         {
             "remote": "/手机备份/视频备份",
-            "local": "/home/pren/local_root/movies"
+            "local": "/root/tmp"
         }
     ]
 }

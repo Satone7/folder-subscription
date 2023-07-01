@@ -1,13 +1,15 @@
 use std::error::Error;
 use std::ops::Add;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::str::FromStr;
-
+use config::ConfigPeer;
 use url::Url;
+use log;
 
 mod config;
 mod downloader;
 mod scanner;
+mod webdav_client;
 
 fn compare_directories(
     webdav_files: &[String],
@@ -27,27 +29,63 @@ fn compare_directories(
     Ok(missing_files)
 }
 
-pub fn run() -> Result<(), Box<dyn Error>> {
-    let config = config::Config::new("/home/pren/resource_synchronizer/config/config.json")?;
+fn run_for_each_config_peer(config_peer: &ConfigPeer) -> Result<(), Box<dyn Error>> {
 
-    for config_peer in config.into_iter() {
-        println!("Remote: {}", &config_peer.remote);
+    log::debug!("Remote: {}", &config_peer.remote);
 
-        let files: Vec<String> = scanner::scan_webdav(&config_peer.remote)?;
+    let files: Vec<String> = scanner::scan_webdav(&config_peer.remote)?;
 
-        let missing_files = compare_directories(&files, &config_peer.local)?;
+    let missing_files = compare_directories(&files, &config_peer.local)?;
 
-        let mut base_url = Url::parse(&config_peer.remote)?;
+    let mut base_url = Url::parse(&config_peer.remote)?;
 
-        for missing_file in missing_files {
-            println!("missing file: {}.", missing_file);
-            let tmp_path = config_peer.local.clone().add("/.").add(&missing_file);
-            println!("Try to download to {} ...", tmp_path);
-            base_url.set_path(&missing_file);
-            downloader::download(&base_url, Path::new(&tmp_path))?;
-            println!("missing file: {} download finish.", missing_file);
-        }
+    for missing_file in missing_files {
+        // println!("missing file: {}.", missing_file);
+        let tmp_path = config_peer.local.clone().add("/.").add(&missing_file);
+        log::info!("Try to download to {} ...", tmp_path);
+        base_url.set_path(&missing_file);
+        downloader::download_file_with_resume(&base_url, Path::new(&tmp_path))?;
+        // println!("missing file: {} download finish.", missing_file);
     }
 
     Ok(())
+}
+
+pub fn run() -> Result<(), Box<dyn Error>> {
+    let config = config::Config::new("config/config.json")?;
+
+    for config_peer in config.into_iter() {
+        run_for_each_config_peer(&config_peer)?;
+    }
+
+    Ok(())
+}
+
+
+#[cfg(test)]
+mod lib_test {
+
+    use std::path::Path;
+    use std::fs;
+
+    use crate::config::ConfigPeer;
+    use crate::run_for_each_config_peer;
+
+
+    #[test]
+    fn sync_many_unexists_files() {
+
+        let test_file = Path::new("target/手机备份/照片备份");
+        if test_file.exists() {
+            fs::remove_dir_all(test_file).unwrap();
+        }
+
+        let test_cp: ConfigPeer = ConfigPeer {
+            remote: "http://softrouter.me:18080/手机备份/照片备份".to_string(),
+            local: "target/手机备份/照片备份".to_string(),
+        };
+
+        assert!(run_for_each_config_peer(&test_cp).is_ok());
+    }
+
 }
